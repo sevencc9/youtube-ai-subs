@@ -4390,9 +4390,70 @@
     if (!sent) transInflight.delete(ik);   // nothing left; do not wait on a reply
   }
 
+  let aiGeneration = 0;
+  function aiStatus(text) {
+    let el = document.getElementById('ytds-ai-status');
+    if (!el) {
+      el = document.createElement('div'); el.id = 'ytds-ai-status';
+      el.style.cssText = 'position:fixed;right:16px;bottom:18px;z-index:2147483647;background:#182230;color:white;padding:8px 12px;border-radius:8px;font:13px sans-serif;pointer-events:none';
+      document.body.append(el);
+    }
+    el.textContent = text; el.hidden = !text;
+  }
+  async function improveCues(data, generation) {
+    const lang = settings.targetLang, nonce = configNonce, vid = currentVideoId;
+    const fresh = () => generation === aiGeneration && nonce === configNonce && vid === currentVideoId && lang === settings.targetLang;
+    const enabled = (await chrome.storage.local.get('aiSegmentation')).aiSegmentation;
+    if (!fresh()) return;
+    if (!enabled) { aiStatus(''); return; }
+    if (settings.engine !== 'byo') { aiStatus('AI 断句未运行：请选用自带 API 的 LLM 翻译引擎'); return; }
+    if (data.sameLang) { aiStatus(''); return; }
+    const source = (data.cues || []).map(c=>({...c})).sort((a,b)=>a.start-b.start);
+    computeCueEnds(source);
+    const units = AISegments.units(source), result = [];
+    let boundaryWarnings = 0;
+    try {
+      for (let i=0; i<units.length;) {
+        if (!fresh()) return;
+        aiStatus('AI 断句处理中 ' + Math.round(i/units.length*100) + '%（未处理部分仍显示原字幕）');
+        let end=i, size=0;
+        while(end<units.length && end-i<240 && size+units[end].text.length<=10000) size+=units[end++].text.length;
+        if(end===i) throw Error('字幕片段过长');
+        const chunk=units.slice(i,end);
+        const response=await chrome.runtime.sendMessage({type:'aiSegment',texts:chunk.map(c=>c.text),targetLang:lang});
+        if (!fresh()) return;
+        if(!response?.ok) throw Error(response?.error?.message || '扩展未返回处理结果，请重新加载扩展并刷新页面');
+        AISegments.validate(response.rows,chunk.length);
+        const rows=AISegments.commit(response.rows,end===units.length);
+        if (!rows.length) throw Error('模型没有返回句子边界，请换用支持指令的模型');
+        // Count only published rows, so the carried tail is not counted twice.
+        boundaryWarnings += AISegments.boundaryIssues(response.rows, chunk.map(c=>c.text)).length;
+        result.push(...AISegments.materialize(chunk,rows));
+        i += rows[rows.length-1].end+1;
+        // Only complete sentences are published. The unfinished tail returns in the next request.
+        // Trim by word indices, not just timestamps: otherwise the source cue
+        // crossing this boundary repeats words already committed to the previous sentence.
+        const remaining = units.slice(i);
+        const tail = [];
+        for (let k=0; k<remaining.length; k+=24) {
+          const part=remaining.slice(k,k+24), first=part[0], last=part.at(-1);
+          tail.push({start:first.start,end:last.end,dur:Math.max(1,last.end-first.start),
+            text:part.map(w=>w.text).join(' '),trans:'AI 正在处理此段…'});
+        }
+        onCues({...data,cues:result.concat(tail),aligned:true,trackKind:'manual',forLang:lang,aiProcessed:true});
+      }
+      if(fresh()) aiStatus('AI 断句完成 · ' + result.length + ' 句' + (boundaryWarnings ? '（部分句子边界待检查）' : ''));
+    } catch(error) {
+      if(fresh()) aiStatus('AI 断句未完成：' + error.message);
+    }
+  }
   function onCues(data) {
     if (data.videoId && data.videoId !== currentVideoId) return; // stale (videoId)
     if (typeof data.nonce === "number" && data.nonce !== configNonce) return; // stale (nonce)
+    if (!data.aiProcessed) {
+      const generation = ++aiGeneration;
+      improveCues(data, generation).catch(() => console.warn('[AI subtitles] Processing unavailable.'));
+    }
     nocuesFallback = false;
     stopFallback();                 // cue mode wins; stop scraping
     blankRecoveries = 0;            // recovery worked (or was never needed):

@@ -1,3 +1,15 @@
+# YouTube AI Subtitles — Personal Fork
+
+基于 Gythiro/yt-dual-subs 的自用 AI 断句与双语字幕扩展。
+
+新增语义断句、按单词映射时间轴、本地字幕缓存、处理进度及错误诊断。配置自己的 LLM API 后使用。
+
+**安装及使用说明：[中文个人版说明](README.personal.zh-CN.md)**
+
+本项目保留上游 MIT 许可证和提交历史。词级时间由原字幕估算；模型断句可能不准确。当前版本 3.7.4，尚未完成真实视频/API 全流程回归。
+
+---
+
 <div align="center">
 
 <a href="https://gythiro.github.io/yt-dual-subs/"><img src="https://gythiro.github.io/yt-dual-subs/img/icon128.png" width="110" alt="Dual Subtitles for YouTube icon"></a>

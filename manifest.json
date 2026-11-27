@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "default_locale": "en",
   "name": "__MSG_extName__",
-  "version": "3.7.0",
+  "version": "3.7.4",
   "description": "__MSG_extDesc__",
   "minimum_chrome_version": "111",
   "permissions": [
@@ -62,6 +62,7 @@
       ],
       "js": [
         "fonts.js",
+        "ai-segments.js",
         "content.js"
       ],
       "css": [

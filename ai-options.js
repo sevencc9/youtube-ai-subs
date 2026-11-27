@@ -1,0 +1,10 @@
+const box=document.createElement('section');
+box.style.cssText='padding:20px;margin:20px;border:1px solid #888;border-radius:12px';
+const label=document.createElement('label'), toggle=document.createElement('input');
+toggle.type='checkbox'; label.append(toggle, ' AI 智能断句与翻译（个人版）');
+const hint=document.createElement('p'); hint.textContent='选择自带 API 的 LLM 翻译引擎后生效。启用后刷新视频；整条字幕会发送至所选服务并产生 API 费用，完成后替换显示。缓存保存在本机。';
+const clear=document.createElement('button'); clear.textContent='清除 AI 字幕缓存';
+box.append(label,hint,clear);document.body.prepend(box);
+chrome.storage.local.get('aiSegmentation').then(v=>toggle.checked=!!v.aiSegmentation);
+toggle.onchange=()=>chrome.storage.local.set({aiSegmentation:toggle.checked});
+clear.onclick=async()=>{const all=await chrome.storage.local.get(null);await chrome.storage.local.remove(Object.keys(all).filter(k=>k.startsWith('aiSegments:')));clear.textContent='缓存已清除';};
